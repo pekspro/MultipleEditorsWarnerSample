@@ -1,0 +1,68 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Home page";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Welcome</h1>
+    <p>When two editors tries to edit the same object they will get a warning.</p>
+</div>
+
+@if (string.IsNullOrWhiteSpace(Model.UserName))
+{
+    <form method="get">
+        <p>
+            <label class="control-label">Which username do you want to use?</label>
+        </p>
+        <div class="form-group">
+            <input asp-for="UserName" class="form-control " value="@Model.SuggestedUserName" />
+        </div>
+    
+        <button type="submit" class="btn btn-primary">Sign in</button>
+    </form>
+}
+else
+{
+
+    <form method="get">
+        <p>
+            <label class="control-label">Your username is <strong>@Model.UserName</strong>.</label>
+        </p>
+        <input type="hidden" asp-for="UserName" value="" />
+        <button type="submit" class="btn btn-primary">Sign out</button>
+    </form>
+
+
+    <p>
+        <table>
+            <thead>
+                <tr>
+                    <th>
+                        Name
+                    </th>
+                    <th>
+                        Hex
+                    </th>
+                    <th>
+
+                    </th>
+                </tr>
+            </thead>
+            @foreach (var color in Model.Colors.OrderBy(a => a.ColorID))
+            {
+                <tr>
+                    <td>
+                        @color.Name
+                    </td>
+                    <td>
+                        @color.R.ToString("x2")@color.G.ToString("x2")@color.B.ToString("x2")
+                    </td>
+                    <td>
+                        <a href="Edit?id=@color.ColorID&username=@Uri.EscapeDataString(Model.UserName)" target="_blank">Edit</a>
+                    </td>
+                </tr>
+            }
+        </table>
+    </p>
+}

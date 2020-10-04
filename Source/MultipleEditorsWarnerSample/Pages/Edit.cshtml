@@ -1,0 +1,60 @@
+﻿@page
+@model MultipleEditorsWarnerSample.Pages.EditModel
+@{
+    ViewData["Title"] = "Edit Color";
+}
+
+<div class="title-block">
+    <h3 class="title"> @ViewData["Title"] </h3>
+</div>
+
+<component type="typeof(Components.MultipleEditorsWarnerComponent)"
+           render-mode="Server"
+           param-GroupName="@($"Color-{Model.Color.ColorID}")"
+           param-UserName="@(Model.UserName)"
+           />
+
+<form method="post">
+    <div class="row">
+        <div class="col-md-12">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+        </div>
+        <div class="col-md-6">
+            <input asp-for="Color.ColorID" type="hidden" />
+            <div class="form-group">
+                <label class="control-label" for="R">Red</label>
+                <input asp-for="Color.R" class="form-control" />
+                <span asp-validation-for="Color.R" class="text-danger"></span>
+            </div>
+
+            <div class="form-group">
+                <label class="control-label" for="G">Green</label>
+                <input asp-for="Color.G" class="form-control" />
+                <span asp-validation-for="Color.G" class="text-danger"></span>
+            </div>
+
+            <div class="form-group">
+                <label class="control-label" for="B">Blue</label>
+                <input asp-for="Color.B" class="form-control" />
+                <span asp-validation-for="Color.B" class="text-danger"></span>
+            </div>
+
+        </div>
+
+        <div class="col-md-6">
+            <div class="form-group">
+                <label class="control-label" for="UserName">Name</label>
+                <input asp-for="Color.Name" class="form-control" />
+                <span asp-validation-for="Color.Name" class="text-danger"></span>
+            </div>
+
+            <div class="form-group">
+                <input type="submit" value="Save" class="btn btn-primary rounded-s" />
+            </div>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

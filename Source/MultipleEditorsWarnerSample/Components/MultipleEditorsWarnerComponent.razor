@@ -1,0 +1,180 @@
+@using Microsoft.AspNetCore.SignalR.Client
+@using MultipleEditorsWarnerSample.Hubs
+@inject NavigationManager NavigationManager
+@implements IDisposable
+
+@if (!ShowWarning)
+{
+    <div class="alert alert-success" role="alert">
+        <h4 class="alert-heading">Hi @UserName!</h4>
+        <p>No one else is working on this page.</p>
+    </div>
+}
+else
+{
+    <div class="alert alert-warning" role="alert">
+        <h4 class="alert-heading">@UserName, you are not alone!</h4>
+        <p>@string.Join(", ", Users.Take(Users.Count - 1)) and @Users.Last() are editing this object. Be careful!</p>
+        <hr>
+
+        <div style="max-height: 208px; overflow-y: auto" id="chatwindow" class="auto-scroll-to-bottom">
+            @if (Messages.Count > 0)
+            {
+                @foreach (var message in Messages.OrderBy(a => a.TimeStamp))
+                {
+                    <p class="speech-bubble @(message.UserName == UserName ? "me" : "")">
+                        <span><small><strong>@message.TimeStamp.ToString("HH:mm:ss") @message.UserName</strong></small></span><br />
+                        @message.Message
+                    </p>
+                }
+            }
+            else
+            {
+                <p>No messages.</p>
+            }
+        </div>
+
+        <div class="form-group">
+            <label>Message:</label>
+
+            <EditForm EditContext="@_editContext" OnSubmit="@HandleSubmitAsync">
+                <InputText @bind-Value="MessageInput" class="form-control" />
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private HubConnection HubConnection = null!;
+
+    private List<GroupMessage> Messages = new List<GroupMessage>();
+
+    private List<string> Users = new List<string>();
+
+    private string MessageInput { get; set; } = string.Empty;
+
+    private int UserChangeCount { get; set; }
+
+    [Parameter]
+    public string UserName { get; set; } = string.Empty;
+
+    [Parameter]
+    public string GroupName { get; set; } = "defaultgroup";
+
+    private EditContext? _editContext;
+
+    private DateTime LaunchTime;
+
+    const int SameUserDelay = 14;
+
+    protected bool ShowWarning
+    {
+        get
+        {
+            // If no connection, show no warning
+            if (!IsConnected)
+            {
+                return false;
+            }
+
+            // If less than 2 users, show no warning
+            if (Users.Count < 2)
+            {
+                return false;
+            }
+
+            // If more or equal to 2 distinct users, show warning
+            if (Users.GroupBy(a => a).Count() >= 2)
+            {
+                return true;
+            }
+
+            // In here, same user has multiple connections running. Since it may
+            // take a while before connection is closed (at least on production,
+            // it seems to be faster when debugging), delay this warning a couple
+            // of seconds.
+            if ((DateTime.UtcNow - LaunchTime).TotalSeconds > SameUserDelay)
+            {
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        LaunchTime = DateTime.UtcNow;
+
+        _editContext = new EditContext(this);
+
+        HubConnection = new HubConnectionBuilder()
+        .WithUrl(NavigationManager.ToAbsoluteUri(MultipleEditorsWarnerHub.HubPath))
+        .Build();
+
+        HubConnection.On<string, DateTime, string>(MultipleEditorsWarnerHub.CallbackMessageReceived, (user, timestamp, message) =>
+        {
+            Messages.Add(new GroupMessage(user, message, timestamp));
+
+            StateHasChanged();
+        });
+
+        HubConnection.On<int, List<string>>(MultipleEditorsWarnerHub.CallbackUsersChanged, (userChangeCount, users) =>
+        {
+            // Message order are not guaranteed. This make sure we only card about the latest message about users.
+            if(userChangeCount > UserChangeCount)
+            {
+                UserChangeCount = userChangeCount;
+                Users = users;
+
+                StateHasChanged();
+            }
+        });
+
+        DelayedRefresh();
+    }
+
+    protected async void DelayedRefresh()
+    {
+        await Task.Delay((SameUserDelay + 1) * 1000);
+
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await HubConnection.StartAsync();
+
+            await HubConnection.SendAsync(nameof(MultipleEditorsWarnerHub.Connect), GroupName, UserName);
+        }
+
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    public Task HandleSubmitAsync()
+    {
+        string message = MessageInput.Trim();
+        MessageInput = string.Empty;
+        StateHasChanged();
+
+        if(message != string.Empty)
+        {
+            return HubConnection.SendAsync(nameof(MultipleEditorsWarnerHub.SendMessage), GroupName, UserName, message);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    Task Send() =>
+        HubConnection.SendAsync(nameof(MultipleEditorsWarnerHub.SendMessage), GroupName, UserName, MessageInput);
+
+    public bool IsConnected =>
+        HubConnection.State == HubConnectionState.Connected;
+
+    public void Dispose()
+    {
+        _ = HubConnection.DisposeAsync();
+    }
+}
